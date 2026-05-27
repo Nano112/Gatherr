@@ -27,6 +27,7 @@ export class StreamingService {
 	private streamEpoch: number = 0;
 	private overlayInterval: ReturnType<typeof setInterval> | null = null;
 	private overlayEnabled: boolean = true;
+	private overlayAnnouncement: string = '';
 
 	constructor(client: Client, streamStatus: StreamStatus, providerManager: ProviderManager) {
 		this.streamer = new Streamer(client);
@@ -363,6 +364,7 @@ export class StreamingService {
 				speakers: speakers.length > 0 ? speakers : undefined,
 				lastTranscript,
 				wakeWordActive,
+				announcement: this.overlayAnnouncement || undefined,
 			});
 		} else {
 			this.composer.updateIdleInfo({
@@ -370,6 +372,7 @@ export class StreamingService {
 				speakers: speakers.length > 0 ? speakers : undefined,
 				lastTranscript,
 				wakeWordActive,
+				announcement: this.overlayAnnouncement || undefined,
 			});
 		}
 
@@ -384,6 +387,16 @@ export class StreamingService {
 		} else {
 			this.tickOverlay();
 		}
+	}
+
+	public setOverlayAnnouncement(text: string): void {
+		this.overlayAnnouncement = (text || '').slice(0, 200);
+		// Push immediately so the overlay reflects it without waiting for the next tick.
+		if (this.overlayEnabled) this.tickOverlay();
+	}
+
+	public getOverlayAnnouncement(): string {
+		return this.overlayAnnouncement;
 	}
 
 	public isOverlayEnabled(): boolean {

@@ -639,12 +639,19 @@ router.post('/api/bot/overlay', (req: Request, res: Response) => {
 		return;
 	}
 
-	const { enabled } = req.body;
+	const { enabled, announcement } = req.body;
 	if (typeof enabled === 'boolean') {
 		streaming.setOverlayEnabled(enabled);
 	}
+	if (typeof announcement === 'string') {
+		streaming.setOverlayAnnouncement(announcement);
+	}
 
-	res.json({ success: true, enabled: streaming.isOverlayEnabled() });
+	res.json({
+		success: true,
+		enabled: streaming.isOverlayEnabled(),
+		announcement: streaming.getOverlayAnnouncement(),
+	});
 });
 
 router.get('/api/bot/overlay', (req: Request, res: Response) => {
@@ -654,7 +661,10 @@ router.get('/api/bot/overlay', (req: Request, res: Response) => {
 		return;
 	}
 
-	res.json({ enabled: streaming.isOverlayEnabled() });
+	res.json({
+		enabled: streaming.isOverlayEnabled(),
+		announcement: streaming.getOverlayAnnouncement(),
+	});
 });
 
 router.post('/api/bot/join', async (req: Request, res: Response) => {

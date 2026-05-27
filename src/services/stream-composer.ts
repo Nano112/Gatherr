@@ -63,6 +63,12 @@ export class StreamComposer {
 		const now = new Date();
 		const t = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
 
+		// Announcement is pinned to the top of the overlay in every state.
+		if (info.announcement?.trim()) {
+			lines.push(`* ${info.announcement.trim()}`);
+			lines.push('');
+		}
+
 		if (this._mediaPlaying || this._paused) {
 			// During media: compact overlay in corner
 			lines.push(`${info.status || 'Playing'}  ${t}`);
@@ -326,6 +332,11 @@ export class StreamComposer {
 		const now = new Date();
 		const t = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
 		r.text(`${info.status||'Idle'}  |  ${t}  |  ${w}x${h}@${config.fps}`,w-320,8,Colors.gray,1);
+		if (info.announcement?.trim()) {
+			const msg = info.announcement.trim();
+			const truncated = msg.length > 80 ? msg.substring(0, 78) + '..' : msg;
+			r.textCentered(`* ${truncated}`, 42, Colors.blue, 1);
+		}
 		if (info.title && info.status !== 'Idle') {
 			const cy = Math.floor(h/2)-30;
 			r.textCentered(info.title,cy,Colors.white,2);
@@ -346,4 +357,5 @@ interface IdleInfo {
 	speakers?: string[];          // Currently speaking usernames
 	lastTranscript?: string;      // Most recent transcription
 	wakeWordActive?: boolean;     // Wake word was triggered
+	announcement?: string;        // Pinned operator message
 }
