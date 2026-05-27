@@ -11,6 +11,8 @@
     "server:node": "node dist/server/index.js",
     "build": "tsc",
     "watch": "tsc -w",
+    "web:dev": "cd web && bun run dev",
+    "web:build": "cd web && bun run build",
     "gen-hash": "bun src/utils/gen-hash.ts",
     "gen-hash:node": "node dist/utils/gen-hash.js"
   },

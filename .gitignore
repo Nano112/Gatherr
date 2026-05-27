@@ -9,3 +9,11 @@ cookies.txt
 data/
 .vscode/
 .gatherr-vc-history.json
+
+# bun / node runtime caches
+.*.node-gyp/
+node-compile-cache/
+
+# frontend build artifacts
+web/node_modules/
+web/dist/

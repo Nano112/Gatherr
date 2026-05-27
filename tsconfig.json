@@ -24,7 +24,9 @@
     "strictNullChecks": false, /* When type checking, take into account null and undefined. */
     "skipLibCheck": true, /* Skip type checking all .d.ts files. */
 
-    "allowJs": true, 
+    "allowJs": true,
     "declaration": true
-  }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "web", "scripts"]
 }

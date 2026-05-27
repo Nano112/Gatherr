@@ -6,13 +6,7 @@ import logger from '../../utils/logger.js';
 
 const router = Router();
 
-// Login route - GET
-router.get("/login", (req, res) => {
-	res.render('pages/login', {
-		error: req.query.error === '1',
-		showLogout: false
-	});
-});
+// GET /login is served by the React SPA via the SPA fallback in src/server/index.ts.
 
 // Login route - POST
 router.post("/login", async (req, res) => {
@@ -39,18 +33,22 @@ router.post("/login", async (req, res) => {
 	
 	if (username === config.server_username && isPasswordMatch) {
 		(req.session as { user?: unknown }).user = username;
-		res.redirect("/");
+		res.json({ ok: true });
 	} else {
-		res.redirect("/login?error=1");
+		res.status(401).json({ ok: false, error: 'Invalid credentials' });
 	}
 });
 
-// Logout route
+// Logout route — supports both legacy GET (redirects to /login) and POST (JSON for React)
+router.post("/logout", (req, res) => {
+	req.session.destroy((err) => {
+		if (err) logger.error("Error destroying session:", err);
+		res.json({ ok: true });
+	});
+});
 router.get("/logout", (req, res) => {
 	req.session.destroy((err) => {
-		if (err) {
-			logger.error("Error destroying session:", err);
-		}
+		if (err) logger.error("Error destroying session:", err);
 		res.redirect("/login");
 	});
 });

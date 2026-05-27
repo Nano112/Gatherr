@@ -1,4 +1,6 @@
 import { Router, Request, Response } from 'express';
+import fs from 'fs';
+import path from 'path';
 import { getStreamingService } from '../../services/registry.js';
 import { recordVC, getVCHistory, removeVCEntry } from '../../services/vc-history.js';
 import config from '../../config.js';
@@ -1156,6 +1158,26 @@ router.post('/api/plex/queue', async (req: Request, res: Response) => {
 	} catch (error: any) {
 		logger.error('Plex queue error:', error);
 		res.status(500).json({ error: error.message || 'Failed to queue' });
+	}
+});
+
+// --- Library endpoint ---
+
+router.get('/api/library', (_req: Request, res: Response) => {
+	try {
+		const videosDir = config.videosDir;
+		if (!fs.existsSync(videosDir)) { res.json({ items: [] }); return; }
+		const entries = fs.readdirSync(videosDir, { withFileTypes: true })
+			.filter(e => e.isFile())
+			.map(e => {
+				const p = path.join(videosDir, e.name);
+				const stat = fs.statSync(p);
+				return { name: e.name, size: stat.size, modified: stat.mtimeMs };
+			})
+			.sort((a, b) => b.modified - a.modified);
+		res.json({ items: entries });
+	} catch (e: any) {
+		res.status(500).json({ error: e.message });
 	}
 });
 

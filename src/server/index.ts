@@ -12,18 +12,18 @@ import { requireAuth } from "./middleware/auth.js";
 
 // Import route handlers
 import authRoutes from "./routes/auth.js";
-import dashboardRoutes from "./routes/dashboard.js";
 import uploadRoutes from "./routes/upload.js";
 import previewRoutes from "./routes/preview.js";
 import apiRoutes from "./routes/api.js";
 
+const WEB_DIST = path.join(process.cwd(), 'web/dist');
+const WEB_INDEX = path.join(WEB_DIST, 'index.html');
+
 const app = express();
 
-// Configure EJS templating engine
+// EJS retained for legacy preview.ejs (unused by new dashboard but harmless)
 app.set('view engine', 'ejs');
 app.set('views', path.join(process.cwd(), 'src/server/views'));
-
-// Use express-ejs-layouts
 app.use(expressLayouts);
 app.set('layout', 'layouts/main');
 
@@ -37,25 +37,41 @@ app.use(session({
 	cookie: { secure: process.env.NODE_ENV === 'production' }
 }));
 
-// Serve static files from public directory
+// Serve legacy /static/* assets first, then the built SPA bundle
 app.use(express.static(path.join(process.cwd(), 'src/server/public')));
+if (fs.existsSync(WEB_DIST)) {
+	app.use(express.static(WEB_DIST, { index: false }));
+} else {
+	logger.warn(`web/dist not found — run \`bun run web:build\` to build the dashboard SPA. Server will return placeholders until then.`);
+}
 
-// Make helper functions available to all templates
+// Template helpers (still needed for preview.ejs)
 app.use((req, res, next) => {
 	res.locals.stringify = stringify;
 	res.locals.prettySize = prettySize;
 	next();
 });
 
-// Apply authentication middleware to all routes except login
+// Auth gate (currently a no-op pass-through, see middleware/auth.ts)
 app.use(requireAuth);
 
-// Routes
+// API + auth routes — these win over the SPA fallback because they're registered first
 app.use('/', authRoutes);
 app.use('/', apiRoutes);
-app.use('/', dashboardRoutes);
 app.use('/', uploadRoutes);
 app.use('/', previewRoutes);
+
+// SPA fallback: every unmatched GET that isn't an API path returns index.html
+// so React Router can take over client-side.
+app.get(/^\/(?!api\/|debug\/|preview\/|login\b|logout\b|delete\/).*/, (_req, res) => {
+	if (fs.existsSync(WEB_INDEX)) {
+		res.sendFile(WEB_INDEX);
+	} else {
+		res.status(503).type('text/plain').send(
+			'Gatherr dashboard bundle missing.\n\nRun:\n  bun run web:build\n\nThen reload.'
+		);
+	}
+});
 
 // Create necessary directories
 if (!fs.existsSync(config.videosDir)) {
