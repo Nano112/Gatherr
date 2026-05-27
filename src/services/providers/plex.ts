@@ -109,26 +109,25 @@ export class PlexProvider implements StreamProvider {
 			}
 
 			// Path scheme:
-			//   section:N            → list sub-views (All, Recently Added, On Deck, …)
-			//   section-view:N:<key> → list items in a sub-view (Metadata array)
-			//   <numeric>            → fetch metadata children (seasons of a show, episodes of a season)
+			//   section:N            → list items in section N (paginated, sorted by Recently Added)
+			//   <numeric>            → metadata children (seasons of a show, episodes of a season)
+			// All content fetches paginate via Plex container headers — without them
+			// large libraries 500 on the server side.
+			const PAGE_SIZE = 200;
+			let url: string;
 			if (path.startsWith('section:')) {
 				const sectionKey = path.replace('section:', '');
-				return await this.browseSectionViews(cfg, sectionKey);
-			}
-
-			let url: string;
-			if (path.startsWith('section-view:')) {
-				const [, sectionKey, viewKey] = path.split(':');
-				if (!sectionKey || !viewKey) return { items: [], path };
-				url = `${cfg.baseUrl}/library/sections/${sectionKey}/${viewKey}?X-Plex-Token=${cfg.token}`;
+				url = `${cfg.baseUrl}/library/sections/${sectionKey}/all?sort=addedAt:desc&X-Plex-Token=${cfg.token}`;
 			} else {
-				// Metadata item — get children (seasons of a show, episodes of a season)
 				url = `${cfg.baseUrl}/library/metadata/${path}/children?X-Plex-Token=${cfg.token}`;
 			}
 
 			const response = await fetch(url, {
-				headers: { Accept: 'application/json' },
+				headers: {
+					Accept: 'application/json',
+					'X-Plex-Container-Start': '0',
+					'X-Plex-Container-Size': String(PAGE_SIZE),
+				},
 			});
 			if (!response.ok) {
 				logger.warn(`Plex browse: ${response.status} from ${url.replace(cfg.token, '<token>')}`);
@@ -149,60 +148,18 @@ export class PlexProvider implements StreamProvider {
 				thumbnailUrl: item.thumb ? `${cfg.baseUrl}${item.thumb}?X-Plex-Token=${cfg.token}` : undefined,
 			}));
 
-			const containerTitle = data?.MediaContainer?.title2 || data?.MediaContainer?.title1 || data?.MediaContainer?.parentTitle || undefined;
+			const totalSize = data?.MediaContainer?.totalSize;
+			let containerTitle = data?.MediaContainer?.title2 || data?.MediaContainer?.title1 || data?.MediaContainer?.parentTitle || undefined;
+			if (totalSize && metadata.length < totalSize) {
+				containerTitle = containerTitle
+					? `${containerTitle} · ${metadata.length} of ${totalSize}`
+					: `${metadata.length} of ${totalSize}`;
+			}
 			return { items, path, title: containerTitle };
 		} catch (error) {
 			logger.error('Plex browse failed:', error);
 			return { items: [], path: path || '/' };
 		}
-	}
-
-	private async browseSectionViews(
-		cfg: { baseUrl: string; token: string },
-		sectionKey: string,
-	): Promise<BrowseResult> {
-		const url = `${cfg.baseUrl}/library/sections/${sectionKey}?X-Plex-Token=${cfg.token}`;
-		const response = await fetch(url, { headers: { Accept: 'application/json' } });
-		if (!response.ok) {
-			logger.warn(`Plex section ${sectionKey}: ${response.status}`);
-			return { items: [], path: `section:${sectionKey}` };
-		}
-		const data = await response.json() as any;
-		const dirs = data?.MediaContainer?.Directory || [];
-		// Surface the common, useful views in a curated order; drop the rest to keep
-		// the entry-list short. Plex servers sometimes 500 on /all for big libraries,
-		// so we still include it (the user will see empty + a log) but list the
-		// reliable views first.
-		const preferred = ['recentlyAdded', 'newest', 'recentlyReleased', 'onDeck', 'unwatched', 'all'];
-		const titleOverrides: Record<string, string> = {
-			recentlyAdded: 'Recently Added',
-			newest: 'Newest',
-			recentlyReleased: 'Recently Released',
-			onDeck: 'On Deck',
-			unwatched: 'Unwatched',
-			all: 'All',
-		};
-		const seen = new Set<string>();
-		const ordered: any[] = [];
-		for (const k of preferred) {
-			const found = dirs.find((d: any) => d.key === k);
-			if (found) { ordered.push(found); seen.add(k); }
-		}
-		for (const d of dirs) {
-			if (d.key && !seen.has(d.key) && (d.secondary === undefined || d.secondary === 0)) {
-				ordered.push(d);
-			}
-		}
-		const items: BrowseItem[] = ordered.map((d: any) => ({
-			id: `section-view:${sectionKey}:${d.key}`,
-			title: titleOverrides[d.key] || d.title,
-			type: 'folder' as const,
-		}));
-		return {
-			items,
-			path: `section:${sectionKey}`,
-			title: data?.MediaContainer?.title1 || undefined,
-		};
 	}
 
 	private async browseLibraries(cfg: { baseUrl: string; token: string }): Promise<BrowseResult> {
